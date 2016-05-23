@@ -34,4 +34,16 @@ void dmtx_intensity(DotMatrix_Cfg* dmtx, uint8_t intensity);
 /** Display on/off */
 void dmtx_blank(DotMatrix_Cfg* dmtx, bool blank);
 
+/**
+ * @brief Send a single bit
+ * @param dmtx : driver struct
+ * @param x : pixel X
+ * @param y : pixel Y
+ * @param bit : 1 or 0
+ */
+void dmtx_set(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, bool bit);
+
+/** Clear the screen (not showing) */
+void dmtx_clear(DotMatrix_Cfg* dmtx);
+
 #endif // MATRIXDSP_H

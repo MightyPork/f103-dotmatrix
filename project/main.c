@@ -35,15 +35,12 @@ int main(void)
 	dmtx_cfg.CS_GPIOx = GPIOA;
 	dmtx_cfg.CS_PINx = GPIO_Pin_4;
 	dmtx_cfg.SPIx = SPI1;
-	dmtx_cfg.cols = 4;
-	dmtx_cfg.rows = 1;
+	dmtx_cfg.cols = 2;
+	dmtx_cfg.rows = 2;
 
 	dmtx = dmtx_init(&dmtx_cfg);
 
-	dmtx->screen[0] = 0xF0;
-	dmtx->screen[4] = 0x0F;
-
-	dmtx_show(dmtx);
+	dmtx_intensity(dmtx, 2);
 
 	ms_time_t last;
 	while (1) {
@@ -52,10 +49,27 @@ int main(void)
 		}
 		poll_subsystems();
 
-		dmtx_blank(dmtx, false);
-		delay_ms(250);
-		dmtx_blank(dmtx, true);
-		delay_ms(250);
+		// 1
+		dmtx_clear(dmtx);
+		for (int i = 0; i <= 15; i++) {
+			dmtx_set(dmtx, i, i, true);
+			dmtx_set(dmtx, i+2, i-2, true);
+			dmtx_set(dmtx, i-2, i+2, true);
+		}
+		dmtx_show(dmtx);
+
+		delay_ms(500);
+
+		// 2
+		dmtx_clear(dmtx);
+		for (int i = 0; i <= 15; i++) {
+			dmtx_set(dmtx, 15-i, i, true);
+			dmtx_set(dmtx, 15-(i+2), i-2, true);
+			dmtx_set(dmtx, 15-(i-2), i+2, true);
+		}
+		dmtx_show(dmtx);
+
+		delay_ms(500);
 	}
 }
 
