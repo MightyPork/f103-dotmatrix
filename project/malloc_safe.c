@@ -29,7 +29,7 @@ void *malloc_safe_do(size_t size, const char* file, uint32_t line)
 
 void *calloc_safe_do(size_t nmemb, size_t size, const char* file, uint32_t line)
 {
-	void *mem = calloc(size, nmemb);
+	void *mem = calloc(nmemb, size);
 	if (mem == NULL) {
 		// malloc failed
 		error("Malloc failed in file %s on line %"PRIu32, file, line);
