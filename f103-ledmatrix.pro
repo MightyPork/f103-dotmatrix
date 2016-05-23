@@ -81,7 +81,8 @@ HEADERS += \
 	project/main.h \
 	project/utils/matcher.h \
 	project/utils/meanbuf.h \
-    project/display.h
+    project/display.h \
+    project/matrixdsp.h
 
 SOURCES += \
 	lib/cmsis/core_cm3.c \
@@ -138,7 +139,8 @@ SOURCES += \
 	project/utils/str_utils.c \
 	project/utils/matcher.c \
 	project/utils/meanbuf.c \
-    project/display.c
+    project/display.c \
+    project/matrixdsp.c
 
 DISTFILES += \
 	style.astylerc \

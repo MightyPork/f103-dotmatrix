@@ -13,7 +13,10 @@
 #include <math.h>
 #include <sbmp.h>
 
-void poll_subsystems(void)
+#include "matrixdsp.h"
+
+
+static void poll_subsystems(void)
 {
 	// poll serial buffers (runs callback)
 	com_poll(debug_iface);
@@ -36,29 +39,69 @@ void poll_subsystems(void)
 
 
 
-void blinky(void* arg)
-{
-	(void)arg;
-	GPIOC->ODR ^= 1<<13;
-}
-
-
-
-
 int main(void)
 {
 	hw_init();
-	display_init();
+//	display_init();
 
-	banner("*** STM32F103K8T6 RGB LED demo ***");
+	banner("*** LED MATRIX DEMO ***");
 	banner_info("(c) Ondrej Hruska, 2016");
 	banner_info("Katedra mereni K338, CVUT FEL");
 
+	ms_time_t last;
 
-	add_periodic_task(blinky, NULL, 500, false);
+	mdsp_send_command_all(CMD_DECODE_MODE, 0x00);
+	mdsp_send_command_all(CMD_SCAN_LIMIT, 0x07);
+	mdsp_send_command_all(CMD_SHUTDOWN, 0x01);
+	mdsp_send_command_all(CMD_DISPLAY_TEST, 0x00);
+	mdsp_send_command_all(CMD_INTENSITY, 0x05);
+
+	mdsp_clear();
+
+	// ---
+
+	const uint16_t inva0[] = {
+		0b00100000100,
+		0b00010001000,
+		0b00111111100,
+		0b01101110110,
+		0b11111111111,
+		0b10111111101,
+		0b10100000101,
+		0b00011011000,
+	};
+
+	const uint16_t inva1[] = {
+		0b00100000100,
+		0b10010001001,
+		0b10111111101,
+		0b11101110111,
+		0b11111111111,
+		0b01111111110,
+		0b00100000100,
+		0b01000000010,
+	};
 
 	while (1) {
+		if (ms_loop_elapsed(&last, 500)) {
+			GPIOC->ODR ^= 1 << 13;
+		}
+
 		poll_subsystems();
+
+		for (int i = 0; i < 8; i++) {
+			uint32_t x = __RBIT(inva0[7-i]);
+			mdsp_set(i, x >> 21);
+			mdsp_set(8+i, (x >> 29) & 0b111);
+		}
+		delay_ms(500);
+
+		for (int i = 0; i < 8; i++) {
+			uint32_t x = __RBIT(inva1[7-i]);
+			mdsp_set(i, x >> 21);
+			mdsp_set(8+i, (x >> 29) & 0b111);
+		}
+		delay_ms(500);
 	}
 }
 

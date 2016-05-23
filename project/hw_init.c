@@ -8,11 +8,13 @@
 #include "utils/timebase.h"
 
 #include "bus/event_queue.h"
+#include "com/debug.h"
 
 // ---- Private prototypes --------
 
 static void conf_gpio(void);
 static void conf_usart(void);
+static void conf_spi(void);
 static void conf_systick(void);
 static void conf_subsystems(void);
 static void conf_irq_prios(void);
@@ -27,6 +29,7 @@ void hw_init(void)
 	conf_gpio();
 	conf_usart();
 	conf_systick();
+	conf_spi();
 	conf_irq_prios();
 	conf_subsystems();
 }
@@ -71,6 +74,7 @@ static void conf_subsystems(void)
 static void conf_gpio(void)
 {
 	GPIO_InitTypeDef gpio_cnf;
+	GPIO_StructInit(&gpio_cnf);
 
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
@@ -96,6 +100,18 @@ static void conf_gpio(void)
 	// A0-sonar trig | UART2 - debug, UART1 - esp
 	gpio_cnf.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_9 | GPIO_Pin_10;
 	gpio_cnf.GPIO_Mode = GPIO_Mode_AF_PP;
+	gpio_cnf.GPIO_Speed = GPIO_Speed_10MHz;
+	GPIO_Init(GPIOA, &gpio_cnf);
+
+	// SPI
+	gpio_cnf.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7;
+	gpio_cnf.GPIO_Mode = GPIO_Mode_AF_PP;
+	gpio_cnf.GPIO_Speed = GPIO_Speed_10MHz;
+	GPIO_Init(GPIOA, &gpio_cnf);
+	// SPI NSS out
+	gpio_cnf.GPIO_Pin = GPIO_Pin_4;
+	gpio_cnf.GPIO_Mode = GPIO_Mode_Out_PP;
+	gpio_cnf.GPIO_Speed = GPIO_Speed_10MHz;
 	GPIO_Init(GPIOA, &gpio_cnf);
 }
 
@@ -113,6 +129,26 @@ static void conf_usart(void)
 
 	// Datalink iface
 	data_iface = usart_iface_init(USART1, 460800, 256, 256);
+}
+
+/**
+ * @brief Configure SPI
+ */
+static void conf_spi(void)
+{
+	RCC_APB2PeriphClockCmd(RCC_APB2ENR_SPI1EN, ENABLE);
+
+	SPI_InitTypeDef spi_cnf;
+	SPI_StructInit(&spi_cnf);
+
+	spi_cnf.SPI_Direction = SPI_Direction_1Line_Tx;
+	spi_cnf.SPI_Mode = SPI_Mode_Master;
+	spi_cnf.SPI_NSS = SPI_NSS_Soft;
+	spi_cnf.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
+
+	SPI_Init(SPI1, &spi_cnf);
+
+	SPI_Cmd(SPI1, ENABLE);
 }
 
 
