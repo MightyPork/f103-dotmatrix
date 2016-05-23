@@ -54,7 +54,7 @@ int main(void)
 	mdsp_send_command_all(CMD_SCAN_LIMIT, 0x07);
 	mdsp_send_command_all(CMD_SHUTDOWN, 0x01);
 	mdsp_send_command_all(CMD_DISPLAY_TEST, 0x00);
-	mdsp_send_command_all(CMD_INTENSITY, 0x05);
+	mdsp_send_command_all(CMD_INTENSITY, 0x0F);
 
 	mdsp_clear();
 
@@ -89,7 +89,16 @@ int main(void)
 
 		poll_subsystems();
 
-		for (int i = 0; i < 8; i++) {
+		for(int i = 0; i < 8; i++) {
+			mdsp_send_command_all(CMD_DIGIT0+i, i);
+		}
+		delay_ms(500);
+
+		for(int i = 7; i >= 0; i--) {
+			mdsp_send_command_all(CMD_DIGIT0+i, 0x00);
+		}
+		delay_ms(500);
+		/*for (int i = 0; i < 8; i++) {
 			uint32_t x = __RBIT(inva0[7-i]);
 			mdsp_set(i, x >> 21);
 			mdsp_set(8+i, (x >> 29) & 0b111);
@@ -101,7 +110,7 @@ int main(void)
 			mdsp_set(i, x >> 21);
 			mdsp_set(8+i, (x >> 29) & 0b111);
 		}
-		delay_ms(500);
+		delay_ms(500);*/
 	}
 }
 

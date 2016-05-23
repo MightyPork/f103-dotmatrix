@@ -57,7 +57,7 @@ void mdsp_send_command(uint8_t idx, MDSP_Command cmd, uint8_t data)
 
 void mdsp_send_command_all(MDSP_Command cmd, uint8_t data)
 {
-	dbg("Set cmd 0x%02x, data 0x%02x ALL", cmd, data);
+	//dbg("Set cmd 0x%02x, data 0x%02x ALL", cmd, data);
 
 	set_nss(false);
 	while (MDSP_SPIx->SR & SPI_SR_BSY);
@@ -67,7 +67,6 @@ void mdsp_send_command_all(MDSP_Command cmd, uint8_t data)
 	}
 
 	while (MDSP_SPIx->SR & SPI_SR_BSY);
-
 	set_nss(false);
 	set_nss(true);
 }
