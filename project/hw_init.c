@@ -62,7 +62,7 @@ static void conf_subsystems(void)
 	timebase_init(15, 15);
 
 	// event and task queues
-	queues_init(15, 15);
+	queues_init(30, 30);
 
 	// initialize SBMP for ESP8266
 	dlnk_init();

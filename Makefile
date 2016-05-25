@@ -113,7 +113,7 @@ LIB_CFLAGS   = -Wno-shadow -Wno-float-equal -Wno-inline -Wno-unused-parameter -W
 ###############################################################################
 # Linker flags
 
-LDFLAGS     += --static -lm -lc -nostartfiles  -specs=nano.specs
+LDFLAGS     += --static -lm -lc -nostartfiles  
 LDFLAGS     += -Llib
 LDFLAGS     += -T$(LDSCRIPT)
 LDFLAGS     += -Wl,-Map=$(*).map
