@@ -43,6 +43,12 @@ void dmtx_blank(DotMatrix_Cfg* dmtx, bool blank);
  */
 void dmtx_set(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, bool bit);
 
+/** Get a single bit */
+bool dmtx_get(DotMatrix_Cfg* dmtx, int32_t x, int32_t y);
+
+/** Toggle a single bit */
+void dmtx_toggle(DotMatrix_Cfg* dmtx, int32_t x, int32_t y);
+
 /** Clear the screen (not showing) */
 void dmtx_clear(DotMatrix_Cfg* dmtx);
 

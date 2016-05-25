@@ -15,4 +15,7 @@
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
+
+void audio_capture_done(void* unused);
+
 #endif // MAIN_H

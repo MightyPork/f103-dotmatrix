@@ -53,13 +53,21 @@ void dmtx_blank(DotMatrix_Cfg* dmtx, bool blank)
 	max2719_cmd_all(&dmtx->drv, MAX2719_CMD_SHUTDOWN, blank & 0x01);
 }
 
-void dmtx_set(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, bool bit)
+/**
+ * @brief Get a cell pointer
+ * @param dmtx : driver inst
+ * @param x : x coord
+ * @param y : y coord
+ * @param xd : pointer to store the offset in the cell
+ * @return cell ptr
+ */
+static uint8_t* cell_ptr(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, uint8_t *xd)
 {
-	if (x < 0 || y < 0) return;
-	if ((uint32_t)x >= dmtx->cols*8 || (uint32_t)y >= dmtx->rows*8) return;
+	if (x < 0 || y < 0) return NULL;
+	if ((uint32_t)x >= dmtx->cols*8 || (uint32_t)y >= dmtx->rows*8) return NULL;
 
 	uint32_t cell_x = (uint32_t)x >> 3;
-	uint8_t xd = x & 7;
+	*xd = x & 7;
 
 	// resolve cell
 	uint32_t digit = y & 7;
@@ -67,7 +75,35 @@ void dmtx_set(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, bool bit)
 
 	uint32_t cell_idx = (digit * dmtx->drv.chain_len) + cell_x;
 
-	uint8_t *cell = &dmtx->screen[cell_idx];
+	return &dmtx->screen[cell_idx];
+}
+
+
+bool dmtx_get(DotMatrix_Cfg* dmtx, int32_t x, int32_t y)
+{
+	uint8_t xd;
+	uint8_t *cell = cell_ptr(dmtx, x, y, &xd);
+	if (cell == NULL) return 0;
+
+	return (bool)(*cell & (1 << xd));
+}
+
+
+void dmtx_toggle(DotMatrix_Cfg* dmtx, int32_t x, int32_t y)
+{
+	uint8_t xd;
+	uint8_t *cell = cell_ptr(dmtx, x, y, &xd);
+	if (cell == NULL) return;
+
+	*cell ^= 1 << xd;
+}
+
+
+void dmtx_set(DotMatrix_Cfg* dmtx, int32_t x, int32_t y, bool bit)
+{
+	uint8_t xd;
+	uint8_t *cell = cell_ptr(dmtx, x, y, &xd);
+	if (cell == NULL) return;
 
 	if (bit) {
 		*cell |= bit << xd;

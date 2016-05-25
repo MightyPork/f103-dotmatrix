@@ -91,7 +91,7 @@ STFLASH := $(shell which st-flash)
 ###############################################################################
 
 # For CMSIS compatibility
-DEFS          += -D__weak="__attribute__((weak))" -D__packed="__attribute__((__packed__))"
+DEFS          += -D__weak="__attribute__((weak))" -D__packed="__attribute__((__packed__))" -D__STATIC_INLINE="static inline"
 DEFS          += -DVERBOSE_LOGGING=1
 
 ###############################################################################
@@ -113,7 +113,7 @@ LIB_CFLAGS   = -Wno-shadow -Wno-float-equal -Wno-inline -Wno-unused-parameter -W
 ###############################################################################
 # Linker flags
 
-LDFLAGS     += --static -lm -lc -nostartfiles -specs=nano.specs
+LDFLAGS     += --static -lm -lc -nostartfiles  -specs=nano.specs
 LDFLAGS     += -Llib
 LDFLAGS     += -T$(LDSCRIPT)
 LDFLAGS     += -Wl,-Map=$(*).map

@@ -18,9 +18,71 @@
 #include "max2719.h"
 #include "dotmatrix.h"
 
+#include "arm_math.h"
+
 static void poll_subsystems(void);
 
 static DotMatrix_Cfg *dmtx;
+
+#define SAMP_BUF_LEN 128
+
+union samp_buf_union {
+	uint32_t uints[SAMP_BUF_LEN];
+	float floats[SAMP_BUF_LEN];
+	uint8_t as_bytes[SAMP_BUF_LEN*sizeof(uint32_t)];
+};
+
+// sample buffers (static - invalidated when sampling starts anew).
+static union samp_buf_union samp_buf;
+
+void audio_capture_done(void* unused)
+{
+	(void)unused;
+
+	const int samp_count = SAMP_BUF_LEN/2;
+	const int bin_count = SAMP_BUF_LEN/4;
+
+	float *bins = samp_buf.floats;
+
+	for (int i = 0; i < samp_count; i++) {
+		samp_buf.floats[i] = samp_buf.uints[i] - 2045.0f;
+	}
+
+	for (int i = samp_count - 1; i >= 0; i--) {
+		bins[i * 2 + 1] = 0;              // imaginary
+		bins[i * 2] = samp_buf.floats[i]; // real
+	}
+
+	const arm_cfft_instance_f32 *S;
+	S = &arm_cfft_sR_f32_len64;
+
+	arm_cfft_f32(S, bins, 0, true); // bit reversed FFT
+	arm_cmplx_mag_f32(bins, bins, bin_count); // get magnitude (extract real values)
+
+	// normalize
+	dmtx_clear(dmtx);
+	float factor = (1.0f/bin_count)*0.1f;
+	for(int i = 0; i < bin_count-1; i+=2) {
+		bins[i] *= factor;
+		bins[i+1] *= factor;
+
+		float avg = i==0 ? bins[1] : (bins[i] + bins[i+1])/2;
+
+		for(int j = 0; j < ceilf(avg); j++) {
+			dmtx_set(dmtx, i/2, j, true);
+		}
+	}
+
+	dmtx_show(dmtx);
+}
+
+
+static void capture_audio(void *unused)
+{
+	(void)unused;
+
+	start_adc_dma(samp_buf.uints, SAMP_BUF_LEN/2);
+}
 
 
 int main(void)
@@ -40,36 +102,17 @@ int main(void)
 
 	dmtx = dmtx_init(&dmtx_cfg);
 
-	dmtx_intensity(dmtx, 2);
+	dmtx_intensity(dmtx, 7);
+
+	add_periodic_task(capture_audio, NULL, 10, false);
 
 	ms_time_t last;
 	while (1) {
 		if (ms_loop_elapsed(&last, 500)) {
 			GPIOC->ODR ^= 1 << 13;
 		}
+
 		poll_subsystems();
-
-		// 1
-		dmtx_clear(dmtx);
-		for (int i = 0; i <= 15; i++) {
-			dmtx_set(dmtx, i, i, true);
-			dmtx_set(dmtx, i+2, i-2, true);
-			dmtx_set(dmtx, i-2, i+2, true);
-		}
-		dmtx_show(dmtx);
-
-		delay_ms(500);
-
-		// 2
-		dmtx_clear(dmtx);
-		for (int i = 0; i <= 15; i++) {
-			dmtx_set(dmtx, 15-i, i, true);
-			dmtx_set(dmtx, 15-(i+2), i-2, true);
-			dmtx_set(dmtx, 15-(i-2), i+2, true);
-		}
-		dmtx_show(dmtx);
-
-		delay_ms(500);
 	}
 }
 
