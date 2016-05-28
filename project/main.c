@@ -22,7 +22,6 @@
 
 static volatile bool capture_pending = false;
 static volatile bool print_next_fft = false;
-static volatile bool capturing_silence = false;
 
 static float virt_zero_value = 2045.0f;
 
@@ -55,13 +54,10 @@ void audio_capture_done(void* unused)
 		samp_buf.floats[i] = (float)samp_buf.uints[i];
 	}
 
-	if (capturing_silence) {
-		float mean;
-		arm_mean_f32(samp_buf.floats, samp_count, &mean);
-		virt_zero_value = mean;
-		info("New zero level = %f", virt_zero_value);
-		capturing_silence = false;
-	}
+	// normalize
+	float mean;
+	arm_mean_f32(samp_buf.floats, samp_count, &mean);
+	virt_zero_value = mean;
 
 	for (int i = 0; i < samp_count; i++) {
 		samp_buf.floats[i] -= virt_zero_value;
@@ -97,7 +93,7 @@ void audio_capture_done(void* unused)
 
 	// normalize
 	dmtx_clear(dmtx);
-	float factor = (1.0f/bin_count)*0.1f;
+	float factor = (1.0f/bin_count)*0.2f;
 	for(int i = 0; i < bin_count-1; i+=2) {
 		bins[i] *= factor;
 		bins[i+1] *= factor;
@@ -105,8 +101,11 @@ void audio_capture_done(void* unused)
 		//float avg = i==0 ? bins[1] : (bins[i] + bins[i+1])/2;
 		float avg = (bins[i] + bins[i+1])/2;
 
-		for(int j = 0; j < ceilf(avg); j++) {
-			dmtx_set(dmtx, i/2, j, true);
+		for(int j = 0; j < 1+floorf(avg); j++) {
+			//dmtx_toggle(dmtx, i/2, j);
+			dmtx_toggle(dmtx, i/2, j);
+			//dmtx_toggle(dmtx, j, 15-i/2);
+			//dmtx_toggle(dmtx, 15- i/2, 15-j);
 		}
 	}
 
@@ -136,11 +135,6 @@ static void rx_char(ComIface *iface)
 			info("PRINT_NEXT");
 			print_next_fft = true;
 		}
-
-		if (ch == 's') {
-			info("SILENCE");
-			capturing_silence = true;
-		}
 	}
 }
 
@@ -152,11 +146,8 @@ int main(void)
 {
 	hw_init();
 
-	capturing_silence = true; // capture silence at start
-
-	banner("*** LED MATRIX DEMO ***");
+	banner("*** FFT dot matrix display ***");
 	banner_info("(c) Ondrej Hruska, 2016");
-	banner_info("Katedra mereni K338, CVUT FEL");
 
 	debug_iface->rx_callback = rx_char;
 
