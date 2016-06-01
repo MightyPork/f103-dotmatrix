@@ -3,8 +3,6 @@
 
 #include "main.h"
 
-void capture_audio(void *unused);
-
 void mode_audio_init(void);
 void mode_audio_start(void);
 void mode_audio_stop(void);

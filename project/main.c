@@ -15,8 +15,11 @@
 
 #include "dotmatrix.h"
 
-#include "arm_math.h"
+#include <arm_math.h>
+
 #include "mode_audio.h"
+#include "mode_snake.h"
+#include "mode_life.h"
 
 #include "scrolltext.h"
 
@@ -68,21 +71,20 @@ static void activate_mode(void)
 		info("MODE: Life");
 		scrolltext("Game of Life", SCROLL_STEP);
 
-		//
+		mode_life_start();
 	} else {
-		//
+		mode_life_stop();
 	}
 
 	// --- Snake Minigame ---
 
 	if (app_mode == MODE_SNAKE) {
 		info("MODE: Snake");
-
 		scrolltext("Snake", SCROLL_STEP);
 
-		//
+		mode_snake_start();
 	} else {
-		//
+		mode_snake_stop();
 	}
 }
 
@@ -94,11 +96,12 @@ int main(void)
 	banner("*** FFT dot matrix display ***");
 	banner_info("(c) Ondrej Hruska, 2016");
 
-	scrolltext("STM32 LED MATRIX DEMO", SCROLL_STEP);
-
 	gamepad_iface->rx_callback = gamepad_rx;
 
 	mode_audio_init();
+	mode_life_init();
+	mode_snake_init();
+
 	mode_audio_start();
 
 	ms_time_t last;
@@ -137,14 +140,29 @@ static void poll_subsystems(void)
 
 static void gamepad_rx(ComIface *iface)
 {
-	uint8_t ch;
-	while(com_rx(iface, &ch)) {
-//		com_tx(debug_iface, ch);
-//		com_tx(debug_iface, '\n');
+	char ch;
+	while(com_rx(iface, (uint8_t*)&ch)) {
+		switch (ch) {
+			case 'I': // Select pressed
+				tq_post(switch_mode, NULL);
+				break;
+			case 'i': // Select released
+				break;
 
-		/* SELECT */
-		if (ch == 'I') {
-			tq_post(switch_mode, NULL);
+			default:
+				switch (app_mode) {
+					case MODE_AUDIO:
+						// discard
+						break;
+
+					case MODE_LIFE:
+						mode_life_btn(ch);
+						break;
+
+					case MODE_SNAKE:
+						mode_snake_btn(ch);
+						break;
+				}
 		}
 	}
 }

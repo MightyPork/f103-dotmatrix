@@ -93,7 +93,9 @@ HEADERS += \
     lib/cmsis/DSP_Lib/Include/core_cmSimd.h \
     project/mode_audio.h \
     project/font.h \
-    project/scrolltext.h
+    project/scrolltext.h \
+    project/mode_snake.h \
+    project/mode_life.h
 
 SOURCES += \
     lib/cmsis/core_cm3.c \
@@ -425,7 +427,9 @@ SOURCES += \
     lib/cmsis/DSP_Lib/Source/TransformFunctions/arm_rfft_q15.c \
     lib/cmsis/DSP_Lib/Source/TransformFunctions/arm_rfft_q31.c \
     project/mode_audio.c \
-    project/scrolltext.c
+    project/scrolltext.c \
+    project/mode_snake.c \
+    project/mode_life.c
 
 DISTFILES += \
     style.astylerc \

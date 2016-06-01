@@ -24,9 +24,9 @@ static union samp_buf_union samp_buf;
 static task_pid_t capture_task_id;
 
 
-
 // prototypes
 static void audio_capture_done(void* unused);
+static void capture_audio(void *unused);
 
 
 static void boot_animation(void)
@@ -102,12 +102,7 @@ void DMA1_Channel1_IRQHandler(void)
 	TIM_Cmd(TIM3, DISABLE);
 	ADC_DMACmd(ADC1, DISABLE);
 
-	if (audio_mode_active) {
-		tq_post(audio_capture_done, NULL);
-	} else {
-		// unset 'pending'
-		capture_pending = false;
-	}
+	tq_post(audio_capture_done, NULL);
 }
 
 
@@ -115,6 +110,11 @@ void DMA1_Channel1_IRQHandler(void)
 static void audio_capture_done(void* unused)
 {
 	(void)unused;
+
+	if (! audio_mode_active) {
+		capture_pending = false;
+		return;
+	}
 
 	const int samp_count = SAMP_BUF_LEN/2;
 	const int bin_count = SAMP_BUF_LEN/4;
