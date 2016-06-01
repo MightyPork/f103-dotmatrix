@@ -4,6 +4,8 @@
 
 #include "dotmatrix.h"
 
+bool audio_mode_active = true;
+
 static volatile bool capture_pending = false;
 static volatile bool print_next_fft = false;
 
@@ -59,7 +61,12 @@ void DMA1_Channel1_IRQHandler(void)
 	TIM_Cmd(TIM3, DISABLE);
 	ADC_DMACmd(ADC1, DISABLE);
 
-	tq_post(audio_capture_done, NULL);
+	if (audio_mode_active) {
+		tq_post(audio_capture_done, NULL);
+	} else {
+		// unset 'pending'
+		capture_pending = false;
+	}
 }
 
 
@@ -143,6 +150,7 @@ void capture_audio(void *unused)
 {
 	(void)unused;
 	if (capture_pending) return;
+	if (! audio_mode_active) return;
 
 	capture_pending = true;
 
