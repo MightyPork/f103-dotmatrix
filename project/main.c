@@ -106,6 +106,9 @@ int main(void)
 
 	banner("*** FFT dot matrix display ***");
 	banner_info("(c) Ondrej Hruska, 2016");
+
+	scrolltext("STM32 F103", SCROLL_STEP);
+
 	boot_animation();
 
 	gamepad_iface->rx_callback = gamepad_rx;
