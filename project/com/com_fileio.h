@@ -8,8 +8,8 @@ extern ComIface *debug_iface;
 /** ESP8266 com iface */
 extern ComIface *data_iface;
 
-/** Do-nothing iface */
-extern ComIface *com_iface_noop;
+/** Gamepad iface */
+extern ComIface *gamepad_iface;
 
 
 /** File descriptors for use with built-in "files" */

@@ -7,6 +7,7 @@
 // Holding fields for ifaces
 ComIface *debug_iface = NULL;
 ComIface *data_iface = NULL;
+ComIface *gamepad_iface = NULL;
 
 
 // --- File descriptor names ------------------------------

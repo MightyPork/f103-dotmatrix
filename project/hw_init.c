@@ -2,13 +2,15 @@
 
 #include "com/iface_usart.h"
 #include "com/com_fileio.h"
-#include "com/datalink.h"
+//#include "com/datalink.h"
 
 #include "utils/debounce.h"
 #include "utils/timebase.h"
 
 #include "bus/event_queue.h"
 #include "com/debug.h"
+
+#include "dotmatrix.h"
 
 // ---- Private prototypes --------
 
@@ -19,6 +21,7 @@ static void conf_systick(void);
 static void conf_subsystems(void);
 static void conf_irq_prios(void);
 static void conf_adc(void);
+static void init_display(void);
 // ---- Public functions ----------
 
 /**
@@ -37,7 +40,6 @@ void hw_init(void)
 
 
 // ---- Private functions ---------
-
 
 
 static void conf_irq_prios(void)
@@ -65,7 +67,25 @@ static void conf_subsystems(void)
 	queues_init(30, 30);
 
 	// initialize SBMP for ESP8266
-	dlnk_init();
+//	dlnk_init();
+
+	// dot matrix
+	init_display();
+}
+
+
+static void init_display(void)
+{
+	DotMatrix_Init dmtx_cfg;
+	dmtx_cfg.CS_GPIOx = GPIOA;
+	dmtx_cfg.CS_PINx = GPIO_Pin_4;
+	dmtx_cfg.SPIx = SPI1;
+	dmtx_cfg.cols = 2;
+	dmtx_cfg.rows = 2;
+
+	dmtx = dmtx_init(&dmtx_cfg);
+
+	dmtx_intensity(dmtx, 7);
 }
 
 
@@ -87,12 +107,15 @@ static void conf_gpio(void)
 	gpio_cnf.GPIO_Speed = GPIO_Speed_10MHz;
 	GPIO_Init(GPIOC, &gpio_cnf);
 
-	// UARTs
+	// [ UARTs ]
+
+	// Tx
 	gpio_cnf.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_9;
 	gpio_cnf.GPIO_Mode = GPIO_Mode_AF_PP;
 	gpio_cnf.GPIO_Speed = GPIO_Speed_10MHz;
 	GPIO_Init(GPIOA, &gpio_cnf);
 
+	// Rx
 	gpio_cnf.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_3;
 	gpio_cnf.GPIO_Mode = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOA, &gpio_cnf);
@@ -123,14 +146,17 @@ static void conf_gpio(void)
 static void conf_usart(void)
 {
 	// Debug interface, working as stdout/stderr.
-	debug_iface = usart_iface_init(USART2, 115200, 256, 256);
+	debug_iface = usart_iface_init(USART1, 115200, 256, 256);
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
 	debug_iface->file = stdout;
 
-	// Datalink iface
-	data_iface = usart_iface_init(USART1, 460800, 256, 256);
 
+	gamepad_iface = usart_iface_init(USART2, 115200, 16, 16);
+
+
+	// Datalink iface
+	//data_iface = usart_iface_init(USART1, 460800, 256, 256);
 }
 
 /**
@@ -205,46 +231,4 @@ static void conf_adc(void)
 	TIM_TimeBaseInit(TIM3, &tim_cnf);
 
 	TIM_SelectOutputTrigger(TIM3, TIM_TRGOSource_Update);
-
-	//TIM3->CR1 |= TIM_CR1_URS; // generate update on overflow
-	//TIM3->CR2 |= TIM_CR2_MMS_1; // trig on update
-}
-
-
-void start_adc_dma(uint32_t *memory, uint32_t count)
-{
-	ADC_Cmd(ADC1, DISABLE);
-	DMA_DeInit(DMA1_Channel1);
-	DMA_InitTypeDef dma_cnf;
-	dma_cnf.DMA_PeripheralBaseAddr = (uint32_t)&ADC1->DR;
-	dma_cnf.DMA_MemoryBaseAddr = (uint32_t)memory;
-	dma_cnf.DMA_DIR = DMA_DIR_PeripheralSRC;
-	dma_cnf.DMA_BufferSize = count;
-	dma_cnf.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-	dma_cnf.DMA_MemoryInc = DMA_MemoryInc_Enable;
-	dma_cnf.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
-	dma_cnf.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;
-	dma_cnf.DMA_Mode = DMA_Mode_Normal;
-	dma_cnf.DMA_Priority = DMA_Priority_Low;
-	dma_cnf.DMA_M2M = DMA_M2M_Disable;
-	DMA_Init(DMA1_Channel1, &dma_cnf);
-	DMA_ITConfig(DMA1_Channel1, DMA1_IT_TC1, ENABLE);
-
-	ADC_Cmd(ADC1, ENABLE);
-	ADC_DMACmd(ADC1, ENABLE);
-	DMA_Cmd(DMA1_Channel1, ENABLE);
-	TIM_Cmd(TIM3, ENABLE);
-}
-
-
-void DMA1_Channel1_IRQHandler(void)
-{
-	DMA_ClearITPendingBit(DMA1_IT_TC1);
-	DMA_ClearITPendingBit(DMA1_IT_TE1);
-
-	DMA_DeInit(DMA1_Channel1);
-	TIM_Cmd(TIM3, DISABLE);
-	ADC_DMACmd(ADC1, DISABLE);
-
-	tq_post(audio_capture_done, NULL);
 }
