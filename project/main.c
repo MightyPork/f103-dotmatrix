@@ -30,11 +30,8 @@ typedef enum {
 
 static void poll_subsystems(void);
 static void gamepad_rx(ComIface *iface);
-static void boot_animation(void);
 static void switch_mode(void *unused); // circle b/w modes
 static void activate_mode(void); // activate currently selected mode
-
-static task_pid_t capture_task_id;
 
 static GameMode app_mode;
 
@@ -58,26 +55,19 @@ static void activate_mode(void)
 
 	if (app_mode == MODE_AUDIO) {
 		info("MODE: Audio");
-
 		scrolltext("Audio FFT", SCROLL_STEP);
 
-		audio_mode_active = true;
-		enable_periodic_task(capture_task_id, true);
+		mode_audio_start();
 	} else {
-		audio_mode_active = false;
-		enable_periodic_task(capture_task_id, false);
+		mode_audio_stop();
 	}
 
 	// --- Game Of Life ---
 
 	if (app_mode == MODE_LIFE) {
 		info("MODE: Life");
-
 		scrolltext("Game of Life", SCROLL_STEP);
 
-		dmtx_clear(dmtx);
-		dmtx_set(dmtx, 5, 5, 1);
-		dmtx_show(dmtx);
 		//
 	} else {
 		//
@@ -90,9 +80,6 @@ static void activate_mode(void)
 
 		scrolltext("Snake", SCROLL_STEP);
 
-		dmtx_clear(dmtx);
-		dmtx_set(dmtx, 13, 13, 1);
-		dmtx_show(dmtx);
 		//
 	} else {
 		//
@@ -107,13 +94,12 @@ int main(void)
 	banner("*** FFT dot matrix display ***");
 	banner_info("(c) Ondrej Hruska, 2016");
 
-	scrolltext("STM32 F103", SCROLL_STEP);
-
-	boot_animation();
+	scrolltext("STM32 LED MATRIX DEMO", SCROLL_STEP);
 
 	gamepad_iface->rx_callback = gamepad_rx;
 
-	capture_task_id = add_periodic_task(capture_audio, NULL, 10, false);
+	mode_audio_init();
+	mode_audio_start();
 
 	ms_time_t last;
 	while (1) {
@@ -147,16 +133,6 @@ static void poll_subsystems(void)
 	}
 }
 
-
-static void boot_animation(void)
-{
-	// Boot animation (for FFT)
-	for(int i = 0; i < 16; i++) {
-		dmtx_set(dmtx, i, 0, 1);
-		dmtx_show(dmtx);
-		delay_ms(25);
-	}
-}
 
 
 static void gamepad_rx(ComIface *iface)

@@ -17,7 +17,7 @@ static void printtext(const char *text, int x, int y)
 		ch -= ' '; // normalize for font table
 
 		if (ch == 0) { // space
-			totalX += 3;
+			totalX += 4;
 			continue;
 		}
 

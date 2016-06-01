@@ -1,15 +1,14 @@
 #include "mode_audio.h"
 #include <arm_math.h>
 #include "bus/event_queue.h"
+#include "utils/timebase.h"
 
 #include "dotmatrix.h"
 
-bool audio_mode_active = true;
+static bool audio_mode_active = true;
 
 static volatile bool capture_pending = false;
-static volatile bool print_next_fft = false;
-
-static float virt_zero_value = 2045.0f;
+//static volatile bool print_next_fft = false;
 
 #define SAMP_BUF_LEN 256
 
@@ -22,10 +21,51 @@ union samp_buf_union {
 // sample buffers (static - invalidated when sampling starts anew).
 static union samp_buf_union samp_buf;
 
+static task_pid_t capture_task_id;
+
+
+
 // prototypes
 static void audio_capture_done(void* unused);
 
 
+static void boot_animation(void)
+{
+	dmtx_clear(dmtx);
+
+	// Boot animation (for FFT)
+	for(int i = 0; i < 16; i++) {
+		dmtx_set(dmtx, i, 0, 1);
+		dmtx_show(dmtx);
+		delay_ms(20);
+	}
+}
+
+
+/** Init audio mode */
+void mode_audio_init(void)
+{
+	capture_task_id = add_periodic_task(capture_audio, NULL, 10, false);
+	enable_periodic_task(capture_task_id, false);
+}
+
+/** Start audio mode */
+void mode_audio_start(void)
+{
+	boot_animation();
+
+	audio_mode_active = true;
+	enable_periodic_task(capture_task_id, true);
+}
+
+/** Stop audio mode */
+void mode_audio_stop(void)
+{
+	audio_mode_active = false;
+	enable_periodic_task(capture_task_id, false);
+}
+
+/** Start DMA capture */
 static void start_adc_dma(uint32_t *memory, uint32_t count)
 {
 	ADC_Cmd(ADC1, DISABLE);
@@ -52,6 +92,7 @@ static void start_adc_dma(uint32_t *memory, uint32_t count)
 }
 
 
+/** IRQ */
 void DMA1_Channel1_IRQHandler(void)
 {
 	DMA_ClearITPendingBit(DMA1_IT_TC1);
@@ -70,6 +111,7 @@ void DMA1_Channel1_IRQHandler(void)
 }
 
 
+/** Capture done callback */
 static void audio_capture_done(void* unused)
 {
 	(void)unused;
@@ -87,20 +129,18 @@ static void audio_capture_done(void* unused)
 	// normalize
 	float mean;
 	arm_mean_f32(samp_buf.floats, samp_count, &mean);
-	virt_zero_value = mean;
 
 	for (int i = 0; i < samp_count; i++) {
-		samp_buf.floats[i] -= virt_zero_value;
+		samp_buf.floats[i] -= mean;
 	}
 
-
-	if (print_next_fft) {
-		printf("--- Raw (adjusted) ---\n");
-		for(int i = 0; i < samp_count; i++) {
-			printf("%.2f, ", samp_buf.floats[i]);
-		}
-		printf("\n");
-	}
+//	if (print_next_fft) {
+//		printf("--- Raw (adjusted) ---\n");
+//		for(int i = 0; i < samp_count; i++) {
+//			printf("%.2f, ", samp_buf.floats[i]);
+//		}
+//		printf("\n");
+//	}
 
 	for (int i = samp_count - 1; i >= 0; i--) {
 		bins[i * 2 + 1] = 0;              // imaginary
@@ -113,13 +153,13 @@ static void audio_capture_done(void* unused)
 	arm_cfft_f32(S, bins, 0, true); // bit reversed FFT
 	arm_cmplx_mag_f32(bins, bins, bin_count); // get magnitude (extract real values)
 
-	if (print_next_fft) {
-		printf("--- Bins ---\n");
-		for(int i = 0; i < bin_count; i++) {
-			printf("%.2f, ", bins[i]);
-		}
-		printf("\n");
-	}
+//	if (print_next_fft) {
+//		printf("--- Bins ---\n");
+//		for(int i = 0; i < bin_count; i++) {
+//			printf("%.2f, ", bins[i]);
+//		}
+//		printf("\n");
+//	}
 
 	// normalize
 	dmtx_clear(dmtx);
@@ -141,7 +181,7 @@ static void audio_capture_done(void* unused)
 
 	dmtx_show(dmtx);
 
-	print_next_fft = false;
+//	print_next_fft = false;
 	capture_pending = false;
 }
 
