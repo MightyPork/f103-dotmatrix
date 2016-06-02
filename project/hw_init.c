@@ -61,7 +61,7 @@ static void conf_irq_prios(void)
 static void conf_subsystems(void)
 {
 	// task scheduler subsystem
-	timebase_init(15, 15);
+	timebase_init(20, 20);
 
 	// event and task queues
 	queues_init(30, 30);

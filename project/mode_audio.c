@@ -163,7 +163,7 @@ static void audio_capture_done(void* unused)
 
 	// normalize
 	dmtx_clear(dmtx);
-	float factor = (1.0f/bin_count)*0.2f;
+	float factor = (1.0f/bin_count)*0.3f;
 	for(int i = 0; i < bin_count-1; i+=2) {
 		bins[i] *= factor;
 		bins[i+1] *= factor;

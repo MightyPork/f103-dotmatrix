@@ -48,17 +48,21 @@ static void switch_mode(void *unused)
 	}
 
 	activate_mode();
+
+	// discard buffer
+	uint8_t x;
+	while(com_rx(gamepad_iface, &x));
 }
 
 
-#define SCROLL_STEP 20
+#define SCROLL_STEP 22
 static void activate_mode(void)
 {
 	// --- Audio FFT mode ---
 
 	if (app_mode == MODE_AUDIO) {
 		info("MODE: Audio");
-		scrolltext("Audio FFT", SCROLL_STEP);
+		scrolltext("AUDIO", SCROLL_STEP);
 
 		mode_audio_start();
 	} else {
@@ -69,7 +73,7 @@ static void activate_mode(void)
 
 	if (app_mode == MODE_LIFE) {
 		info("MODE: Life");
-		scrolltext("Game of Life", SCROLL_STEP);
+		scrolltext("CONWAY", SCROLL_STEP);
 
 		mode_life_start();
 	} else {
@@ -80,7 +84,7 @@ static void activate_mode(void)
 
 	if (app_mode == MODE_SNAKE) {
 		info("MODE: Snake");
-		scrolltext("Snake", SCROLL_STEP);
+		scrolltext("SNAKE", SCROLL_STEP);
 
 		mode_snake_start();
 	} else {
@@ -146,6 +150,7 @@ static void gamepad_rx(ComIface *iface)
 			case 'I': // Select pressed
 				tq_post(switch_mode, NULL);
 				break;
+
 			case 'i': // Select released
 				break;
 

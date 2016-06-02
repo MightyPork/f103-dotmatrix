@@ -87,7 +87,7 @@ bool dmtx_get(DotMatrix_Cfg* disp, int32_t x, int32_t y)
 	uint8_t *cell = cell_ptr(disp, x, y, &xd);
 	if (cell == NULL) return 0;
 
-	return (bool)(*cell & (1 << xd));
+	return (*cell >> xd) & 1;
 }
 
 
@@ -108,8 +108,23 @@ void dmtx_set(DotMatrix_Cfg* disp, int32_t x, int32_t y, bool bit)
 	if (cell == NULL) return;
 
 	if (bit) {
-		*cell |= bit << xd;
+		*cell |= 1 << xd;
 	} else {
-		*cell &= ~(bit << xd);
+		*cell &= ~(1 << xd);
+	}
+}
+
+void dmtx_set_block(DotMatrix_Cfg* disp, int32_t startX, int32_t startY, uint32_t *data_rows, uint32_t width, uint16_t height)
+{
+	for (uint32_t y = 0; y < height; y++) {
+		uint32_t row = data_rows[y];
+
+		for (uint32_t x = 0; x < width; x++) {
+			int xx = startX + (int)x;
+			int yy = startY + (int)y;
+			bool val = (row >> (width - x - 1)) & 1;
+
+			dmtx_set(disp, xx, yy, val);
+		}
 	}
 }

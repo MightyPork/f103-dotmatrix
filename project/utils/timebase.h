@@ -67,6 +67,9 @@ bool is_periodic_task_enabled(task_pid_t pid);
 /** Reset timer for a task */
 bool reset_periodic_task(task_pid_t pid);
 
+/** Set inteval */
+bool set_periodic_task_interval(task_pid_t pid, ms_time_t interval);
+
 
 // --- Future -------------------------------------------------
 

@@ -50,6 +50,9 @@ void dmtx_set(DotMatrix_Cfg* disp, int32_t x, int32_t y, bool bit);
 /** Get a single bit */
 bool dmtx_get(DotMatrix_Cfg* disp, int32_t x, int32_t y);
 
+/** Set a block using array of row data */
+void dmtx_set_block(DotMatrix_Cfg* disp, int32_t startX, int32_t startY, uint32_t *data_rows, uint32_t width, uint16_t height);
+
 /** Toggle a single bit */
 void dmtx_toggle(DotMatrix_Cfg* disp, int32_t x, int32_t y);
 

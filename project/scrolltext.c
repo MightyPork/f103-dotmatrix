@@ -3,6 +3,7 @@
 #include "font.h"
 #include "com/debug.h"
 
+
 static void printtext(const char *text, int x, int y)
 {
 	dmtx_clear(dmtx);
@@ -42,7 +43,7 @@ static void printtext(const char *text, int x, int y)
 			totalX++;
 		}
 
-		totalX++; // gap
+		totalX+= 2; // gap
 	}
 	dmtx_show(dmtx);
 }
@@ -51,7 +52,7 @@ void scrolltext(const char *text, ms_time_t step)
 {
 	(void)step;
 
-	for (int i = 0; i < (int)strlen(text)*FONT_WIDTH + 15; i++) {
+	for (int i = 0; i < (int)strlen(text)*(FONT_WIDTH+1) + 15; i++) {
 		if (i > 0) delay_ms(step);
 
 		printtext(text, 15-i, 4);

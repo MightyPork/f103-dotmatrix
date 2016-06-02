@@ -189,6 +189,21 @@ bool reset_periodic_task(task_pid_t pid)
 }
 
 
+bool set_periodic_task_interval(task_pid_t pid, ms_time_t interval)
+{
+	if (pid == PID_NONE) return false;
+
+	for (size_t i = 0; i < periodic_slot_count; i++) {
+		periodic_task_t *task = &periodic_tasks[i];
+		if (task->pid != pid) continue;
+		task->interval_ms = interval;
+		return true;
+	}
+
+	return false;
+}
+
+
 /** Remove a periodic task. */
 bool remove_periodic_task(task_pid_t pid)
 {
