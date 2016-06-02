@@ -39,6 +39,8 @@ static ms_time_t step_time = 200; // game step time
 #define MOVE_TIME 100 // mouse move
 #define MOVE_START_TIME 700
 
+#define WRAPPING 0
+
 static int cursorX = BOARD_W / 2 - 1;
 static int cursorY = BOARD_H / 2 - 1;
 
@@ -82,26 +84,18 @@ static void board_set(int x, int y, bool color)
 	}
 }
 
-static bool board_get(int x, int y)
+static bool board_get(uint32_t *brd, int x, int y)
 {
-	// wrap
+#if WRAPPING
 	while (x < 0) x += BOARD_W;
 	while (y < 0) y += BOARD_H;
 	while (x >= BOARD_W) x -= BOARD_W;
 	while (y >= BOARD_H) y -= BOARD_H;
+#else
+	if (x < 0 || y < 0 || x >= BOARD_W || y >= BOARD_H) return 0;
+#endif
 
-	return (board[y] >> (BOARD_W - x - 1)) & 1;
-}
-
-static bool board_prev_get(int x, int y)
-{
-	// wrap
-	while (x < 0) x += BOARD_W;
-	while (y < 0) y += BOARD_H;
-	while (x >= BOARD_W) x -= BOARD_W;
-	while (y >= BOARD_H) y -= BOARD_H;
-
-	return (board_prev[y] >> (BOARD_W - x - 1)) & 1;
+	return (brd[y] >> (BOARD_W - x - 1)) & 1;
 }
 
 static void move_cursor(void)
@@ -169,20 +163,22 @@ static void gametick_cb(void *unused)
 			int count = 0;
 
 			// Above
-			count += board_prev_get(i - 1, j - 1);
-			count += board_prev_get(i, j - 1);
-			count += board_prev_get(i + 1, j - 1);
+			count += board_get(board_prev, i - 1, j - 1);
+			count += board_get(board_prev, i, j - 1);
+			count += board_get(board_prev, i + 1, j - 1);
 
 			// Sides
-			count += board_prev_get(i - 1, j);
-			count += board_prev_get(i + 1, j);
+			count += board_get(board_prev, i - 1, j);
+			count += board_get(board_prev, i + 1, j);
 
 			// Below
-			count += board_prev_get(i - 1, j + 1);
-			count += board_prev_get(i, j + 1);
-			count += board_prev_get(i + 1, j + 1);
+			count += board_get(board_prev, i - 1, j + 1);
+			count += board_get(board_prev, i, j + 1);
+			count += board_get(board_prev, i + 1, j + 1);
 
-			bool at = board_prev_get(i, j);
+			bool at = board_get(board_prev, i, j);
+
+			//board_set(i, j, count == 2 || count == 3);
 
 			if (at) {
 				// live cell
@@ -215,7 +211,7 @@ static void blink_cb(void *arg)
 		// first
 		show_board(false);
 
-		bool at = board_get(cursorX, cursorY);
+		bool at = board_get(board, cursorX, cursorY);
 		dmtx_set(dmtx, cursorX, cursorY, 1);
 		dmtx_show(dmtx);
 
@@ -318,8 +314,8 @@ static void movepress_cb(void *unused)
 void mode_life_btn(char key)
 {
 	// Common for run / stop mode
-	switch(key) {
-		case 'A': modA_down = true;	break;
+	switch (key) {
+		case 'A': modA_down = true; break;
 		case 'a': modA_down = false; break;
 		case 'B': modB_down = true; break;
 		case 'b': modB_down = false; break;
