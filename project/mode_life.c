@@ -36,8 +36,8 @@ static ms_time_t step_time = 200; // game step time
 #define BLINKLEN_ONE 300 // blink on time for '1'
 #define BLINKLEN_ZERO 10 // blink on time for '0'
 
-#define MOVE_TIME 100 // mouse move
-#define MOVE_START_TIME 700
+#define MOVE_TIME 80 // mouse move
+#define MOVE_START_TIME 600
 
 #define WRAPPING 0
 
@@ -322,7 +322,7 @@ void mode_life_btn(char key)
 
 		case 'K':
 			// Reset btn
-			if (modA_down) {
+			if (modB_down) {
 				// total reset
 				dbg("Reset to blank");
 				memset(board_orig, 0, SIZEOF_BOARD);
@@ -344,14 +344,14 @@ void mode_life_btn(char key)
 	if (running) {
 
 		switch (key) {
-			case 'X': // slower
+			case 'Y': // slower
 				if (step_time < 1000) {
 					step_time += 50;
 					set_periodic_task_interval(task_gametick, step_time);
 				}
 				break;
 
-			case 'Y': // faster
+			case 'X': // faster
 				if (step_time > 50) {
 					step_time -= 50;
 					set_periodic_task_interval(task_gametick, step_time);
@@ -425,10 +425,10 @@ void mode_life_btn(char key)
 
 			// --- Paint BTN ---
 
-			case 'Y': painting_1 = true; break;
-			case 'y': painting_1 = false; break;
-			case 'X': painting_0 = true; break;
-			case 'x': painting_0 = false; break;
+			case 'X': painting_1 = true; break;
+			case 'x': painting_1 = false; break;
+			case 'Y': painting_0 = true; break;
+			case 'y': painting_0 = false; break;
 
 			// --- Control ---
 

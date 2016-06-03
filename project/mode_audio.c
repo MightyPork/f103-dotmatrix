@@ -15,7 +15,7 @@ static volatile bool capture_pending = false;
 union samp_buf_union {
 	uint32_t uints[SAMP_BUF_LEN];
 	float floats[SAMP_BUF_LEN];
-	uint8_t as_bytes[SAMP_BUF_LEN*sizeof(uint32_t)];
+	uint8_t as_bytes[SAMP_BUF_LEN * sizeof(uint32_t)];
 };
 
 // sample buffers (static - invalidated when sampling starts anew).
@@ -34,7 +34,7 @@ static void boot_animation(void)
 	dmtx_clear(dmtx);
 
 	// Boot animation (for FFT)
-	for(int i = 0; i < 16; i++) {
+	for (int i = 0; i < 16; i++) {
 		dmtx_set(dmtx, i, 0, 1);
 		dmtx_show(dmtx);
 		delay_ms(20);
@@ -116,8 +116,8 @@ static void audio_capture_done(void* unused)
 		return;
 	}
 
-	const int samp_count = SAMP_BUF_LEN/2;
-	const int bin_count = SAMP_BUF_LEN/4;
+	const int samp_count = SAMP_BUF_LEN / 2;
+	const int bin_count = SAMP_BUF_LEN / 4;
 
 	float *bins = samp_buf.floats;
 
@@ -134,14 +134,6 @@ static void audio_capture_done(void* unused)
 		samp_buf.floats[i] -= mean;
 	}
 
-//	if (print_next_fft) {
-//		printf("--- Raw (adjusted) ---\n");
-//		for(int i = 0; i < samp_count; i++) {
-//			printf("%.2f, ", samp_buf.floats[i]);
-//		}
-//		printf("\n");
-//	}
-
 	for (int i = samp_count - 1; i >= 0; i--) {
 		bins[i * 2 + 1] = 0;              // imaginary
 		bins[i * 2] = samp_buf.floats[i]; // real
@@ -153,35 +145,20 @@ static void audio_capture_done(void* unused)
 	arm_cfft_f32(S, bins, 0, true); // bit reversed FFT
 	arm_cmplx_mag_f32(bins, bins, bin_count); // get magnitude (extract real values)
 
-//	if (print_next_fft) {
-//		printf("--- Bins ---\n");
-//		for(int i = 0; i < bin_count; i++) {
-//			printf("%.2f, ", bins[i]);
-//		}
-//		printf("\n");
-//	}
-
 	// normalize
 	dmtx_clear(dmtx);
-	float factor = (1.0f/bin_count)*0.3f;
-	for(int i = 0; i < bin_count-1; i+=2) {
+
+	float factor = (1.0f / bin_count) * 0.25f;
+	for (int i = 0; i < bin_count; i++) {
 		bins[i] *= factor;
-		bins[i+1] *= factor;
 
-		//float avg = i==0 ? bins[1] : (bins[i] + bins[i+1])/2;
-		float avg = (bins[i] + bins[i+1])/2;
-
-		for(int j = 0; j < 1+floorf(avg); j++) {
-			//dmtx_toggle(dmtx, i/2, j);
-			dmtx_toggle(dmtx, i/2, j);
-			//dmtx_toggle(dmtx, j, 15-i/2);
-			//dmtx_toggle(dmtx, 15- i/2, 15-j);
+		for (int j = 0; j < 1 + floorf(bins[i]); j++) {
+			dmtx_set(dmtx, i - 1, j, 1); // hide zero 0th bin
 		}
 	}
 
 	dmtx_show(dmtx);
 
-//	print_next_fft = false;
 	capture_pending = false;
 }
 
@@ -194,5 +171,5 @@ void capture_audio(void *unused)
 
 	capture_pending = true;
 
-	start_adc_dma(samp_buf.uints, SAMP_BUF_LEN/2);
+	start_adc_dma(samp_buf.uints, SAMP_BUF_LEN / 2);
 }
