@@ -9,8 +9,8 @@ static bool life_enabled = false;
 static void show_board(bool do_show);
 static void apply_paint(void);
 
-#define BOARD_W 16
-#define BOARD_H 16
+#define BOARD_W SCREEN_W
+#define BOARD_H SCREEN_H
 
 #define SIZEOF_BOARD (BOARD_H*sizeof(uint32_t))
 

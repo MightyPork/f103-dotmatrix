@@ -15,4 +15,8 @@
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
+// screen size
+#define SCREEN_W 16
+#define SCREEN_H 16
+
 #endif // MAIN_H

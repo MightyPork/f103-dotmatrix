@@ -34,7 +34,7 @@ static void boot_animation(void)
 	dmtx_clear(dmtx);
 
 	// Boot animation (for FFT)
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < SCREEN_W; i++) {
 		dmtx_set(dmtx, i, 0, 1);
 		dmtx_show(dmtx);
 		delay_ms(20);
@@ -149,7 +149,7 @@ static void audio_capture_done(void* unused)
 	dmtx_clear(dmtx);
 
 	float factor = (1.0f / bin_count) * 0.25f;
-	for (int i = 0; i < bin_count; i++) {
+	for (int i = 0; i < MIN(bin_count, SCREEN_W) + 1; i++) { // +1 because bin 0 is always 0
 		bins[i] *= factor;
 
 		for (int j = 0; j < 1 + floorf(bins[i]); j++) {

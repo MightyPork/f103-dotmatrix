@@ -106,7 +106,10 @@ int main(void)
 	mode_life_init();
 	mode_snake_init();
 
-	mode_audio_start();
+	app_mode = MODE_SNAKE;
+	mode_snake_start();
+
+	//mode_audio_start();
 
 	ms_time_t last;
 	while (1) {
