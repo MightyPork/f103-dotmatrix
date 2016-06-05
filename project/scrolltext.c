@@ -4,7 +4,7 @@
 #include "com/debug.h"
 
 
-static void printtext(const char *text, int x, int y)
+void printtext(const char *text, int x, int y)
 {
 	dmtx_clear(dmtx);
 	dmtx_show(dmtx);
@@ -52,9 +52,9 @@ void scrolltext(const char *text, ms_time_t step)
 {
 	(void)step;
 
-	for (int i = 0; i < (int)strlen(text)*(FONT_WIDTH+1) + 15; i++) {
+	for (int i = 0; i < (int)strlen(text)*(FONT_WIDTH+1) + SCREEN_W-1; i++) {
 		if (i > 0) delay_ms(step);
 
-		printtext(text, 15-i, 4);
+		printtext(text, (SCREEN_W-1)-i, SCREEN_H/2-4);
 	}
 }

@@ -52,7 +52,7 @@ void dmtx_intensity(DotMatrix_Cfg* disp, uint8_t intensity)
 
 void dmtx_blank(DotMatrix_Cfg* disp, bool blank)
 {
-	max2719_cmd_all(&disp->drv, MAX2719_CMD_SHUTDOWN, blank & 0x01);
+	max2719_cmd_all(&disp->drv, MAX2719_CMD_SHUTDOWN, (!blank) & 0x01);
 }
 
 /**

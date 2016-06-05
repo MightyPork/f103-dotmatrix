@@ -3,6 +3,8 @@
 #include "dotmatrix.h"
 #include "utils/timebase.h"
 
+#include "scrolltext.h"
+
 #define BOARD_W SCREEN_W
 #define BOARD_H SCREEN_H
 
@@ -31,7 +33,7 @@ typedef struct __attribute__((packed))
 } Cell;
 
 /** Wall tile, invariant, used for out-of-screen coords */
-static const Cell WALL_TILE = {CELL_WALL, 0};
+static Cell WALL_TILE = {CELL_WALL, 0};
 
 /** Game board */
 static Cell board[BOARD_H][BOARD_W];
@@ -46,9 +48,13 @@ static Coord head;
 static Coord tail;
 static Direction head_dir;
 
+/** Limit dir changes to 1 per move */
+static bool changed_dir_this_tick = false;
+
 /** blinking to visually change 'color' */
 
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
 	bool pwm_bit : 1;
 	bool offtask_pending : 1;
 	task_pid_t on_task; // periodic
@@ -76,11 +82,11 @@ static snake_pwm head_pwm = {
 
 #define MIN_MOVE_INTERVAL 64
 #define POINTS_TO_LEVEL_UP 5
-#define PIECES_REMOVED_ON_LEVEL_UP 3
+#define PIECES_REMOVED_ON_LEVEL_UP 4
 
 #define PREDEFINED_LEVELS 10
 static const ms_time_t speeds_for_levels[PREDEFINED_LEVELS] = {
-	320, 240, 180, 140, 95, 80, 65, 55, 40, 30
+	260, 200, 160, 120, 95, 80, 65, 55, 50, 45
 };
 
 static ms_time_t move_interval;
@@ -88,6 +94,9 @@ static ms_time_t move_interval;
 static uint32_t score;
 static uint32_t level_up_score; // counter
 static uint32_t level;
+
+// used to reduce length seamlessly after a level-up
+static uint32_t double_tail_move_cnt = 0;
 
 
 static Cell *cell_at_xy(int x, int y);
@@ -152,7 +161,7 @@ static void task_pwm_on_cb(void *ptr)
 	show_board();
 
 	pwm->offtask_pending = true;
-	schedule_task(task_pwm_off_cb, ptr, pwm->offtime_ms, true);
+	pwm->off_task = schedule_task(task_pwm_off_cb, ptr, pwm->offtime_ms, true);
 }
 
 /** Initialize a snake PWM channel */
@@ -179,13 +188,11 @@ static void snake_pwm_stop(snake_pwm *pwm)
 	abort_scheduled_task(pwm->off_task);
 }
 
-
-
 /** Get board cell at coord (x,y) */
 static Cell *cell_at_xy(int x, int y)
 {
 	if (x < 0 || x >= BOARD_W || y < 0 || y >= BOARD_H) {
-		return &WALL_TILE; // discards const - OK
+		return &WALL_TILE;
 	}
 
 	return &board[y][x];
@@ -211,26 +218,31 @@ static void place_food(void)
 		if (cell->type == CELL_EMPTY) {
 			cell->type = CELL_FOOD;
 
-			//dbg("Food at [%d, %d]", food.x, food.y);
+			dbg("Placed food at [%d, %d]", food.x, food.y);
 			break;
 		}
 	}
 
 	// avoid "doubleblink" glitch
 	reset_periodic_task(food_pwm.on_task);
-	food_pwm.pwm_bit = 1;
-	food_pwm.offtask_pending = 0;
+	abort_scheduled_task(food_pwm.off_task);
+	task_pwm_on_cb(&food_pwm);
 }
 
 /** Clear the board and prepare for a new game */
 static void new_game(void)
 {
+	dbg("Snake NEW GAME");
+
 	// Stop snake (make sure it's stopped)
 	reset_periodic_task(task_snake_move);
 	enable_periodic_task(task_snake_move, false);
 
 	moving = false;
 	alive = true;
+
+	changed_dir_this_tick = false;
+	double_tail_move_cnt = 0;
 
 	level = 0;
 	score = 0;
@@ -265,11 +277,16 @@ static void new_game(void)
 	snake_pwm_start(&food_pwm);
 
 	show_board();
+
+	// Discard keys pressed during the death animation
+	uint8_t x;
+	while(com_rx(gamepad_iface, &x));
 }
 
 static void snake_died(void)
 {
 	dbg("R.I.P. Snake");
+	dbg("Total Score %d, Level %d", score, level);
 
 	moving = false;
 	alive = false;
@@ -277,9 +294,41 @@ static void snake_died(void)
 
 	// stop blinky animation of the snake head.
 	snake_pwm_stop(&head_pwm);
+	head_pwm.pwm_bit = 1;
 
-	// TODO death animation
-	// TODO show score
+	// Let it sink...
+	until_timeout(600) {
+		tq_poll(); // take care of periodic tasks (anim)
+	}
+
+	snake_pwm_stop(&food_pwm);
+	show_board();
+
+	snake_active = false; // suppress pending callbacks
+
+	dmtx_clear(dmtx);
+	dmtx_blank(dmtx, true); // Screen off
+
+	char txt[6];
+	sprintf(txt, "%d", score);
+	size_t len = strlen(txt);
+	printtext(txt, (int)(SCREEN_W / 2 - (len * 5) / 2) - 1, SCREEN_H / 2 - 4);
+
+	delay_ms(400);
+	dmtx_blank(dmtx, false); // unblank
+
+	delay_ms(2000);
+
+	dmtx_blank(dmtx, true); // blank
+	delay_ms(400);
+
+	dmtx_clear(dmtx);
+	dmtx_show(dmtx);
+
+	dmtx_blank(dmtx, false); // unblank
+
+	snake_active = true; // resume snake
+	new_game();
 }
 
 static void move_coord_by_dir(Coord *coord, Direction dir)
@@ -309,6 +358,7 @@ static void snake_move_cb(void *unused)
 {
 	(void)unused;
 
+	changed_dir_this_tick = false; // allow dir change next move
 	bool want_new_food = false;
 
 	Coord shadowhead = head;
@@ -335,6 +385,11 @@ static void snake_move_cb(void *unused)
 		case CELL_EMPTY:
 			// move tail
 			move_tail();
+
+			if (double_tail_move_cnt > 0) {
+				move_tail(); // 2x
+				double_tail_move_cnt--;
+			}
 			break;
 	}
 
@@ -357,15 +412,9 @@ static void snake_move_cb(void *unused)
 
 	// level up
 	if (level_up_score == POINTS_TO_LEVEL_UP) {
-		enable_periodic_task(task_snake_move, false);
+		info("level up");
 
-		// remove some pieces
-		for (int i = 0; i < PIECES_REMOVED_ON_LEVEL_UP; i++) {
-			move_tail();
-			until_timeout(move_interval/2) {
-				tq_poll(); // take care of periodic tasks (anim)
-			}
-		}
+		double_tail_move_cnt += PIECES_REMOVED_ON_LEVEL_UP;
 
 		level++;
 		level_up_score = 0;
@@ -376,7 +425,6 @@ static void snake_move_cb(void *unused)
 		}
 
 		set_periodic_task_interval(task_snake_move, move_interval);
-		enable_periodic_task(task_snake_move, true);
 	}
 }
 
@@ -396,9 +444,6 @@ void mode_snake_start(void)
 {
 	snake_active = true;
 
-	snake_pwm_start(&head_pwm);
-	snake_pwm_start(&food_pwm);
-
 	new_game();
 }
 
@@ -416,17 +461,23 @@ void mode_snake_stop(void)
 /** Change dir (safely) */
 static void change_direction(Direction dir)
 {
+	if (changed_dir_this_tick) return;
+
 	// This is a compensation for shitty gamepads
 	// with accidental arrow hits
-
 	Coord shadowhead = head;
 	move_coord_by_dir(&shadowhead, dir);
-
-	Cell *target = cell_at(&shadowhead);
-
-	if (target->type == CELL_BODY) return;
+	Cell *target = cell_at(&shadowhead); // Target cell
+	if (target->type == CELL_BODY) {
+		move_coord_by_dir(&shadowhead, target->dir);
+		if (shadowhead.x == head.x && shadowhead.y == head.y) {
+			warn("Ignoring suicidal dir change");
+			return; // Would crash into own neck
+		}
+	}
 
 	head_dir = dir;
+	changed_dir_this_tick = true;
 }
 
 /** User button */
@@ -438,7 +489,7 @@ void mode_snake_btn(char key)
 		case 'L': change_direction(WEST); break;
 		case 'R': change_direction(EAST); break;
 
-		case 'J':
+		case 'J': // Start
 			if (alive) break;
 			// dead - reset by pressing 'start'
 
@@ -453,6 +504,7 @@ void mode_snake_btn(char key)
 		moving = true;
 		reset_periodic_task(task_snake_move);
 		enable_periodic_task(task_snake_move, true);
+		return;
 	}
 
 	// running + start -> 'pause'
