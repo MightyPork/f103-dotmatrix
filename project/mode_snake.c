@@ -80,7 +80,7 @@ static snake_pwm head_pwm = {
 
 #define PREDEFINED_LEVELS 10
 static const ms_time_t speeds_for_levels[PREDEFINED_LEVELS] = {
-	320, 245, 190, 150, 120, 100, 80, 60, 50, 40
+	320, 240, 180, 140, 95, 80, 65, 55, 40, 30
 };
 
 static ms_time_t move_interval;
