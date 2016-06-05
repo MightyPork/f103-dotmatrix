@@ -6,9 +6,6 @@
 
 void printtext(const char *text, int x, int y)
 {
-	dmtx_clear(dmtx);
-	dmtx_show(dmtx);
-
 	int totalX = 0;
 
 	for (int textX = 0; textX < (int)strlen(text); textX++) {
@@ -45,7 +42,6 @@ void printtext(const char *text, int x, int y)
 
 		totalX+= 2; // gap
 	}
-	dmtx_show(dmtx);
 }
 
 void scrolltext(const char *text, ms_time_t step)
@@ -55,6 +51,8 @@ void scrolltext(const char *text, ms_time_t step)
 	for (int i = 0; i < (int)strlen(text)*(FONT_WIDTH+1) + SCREEN_W-1; i++) {
 		if (i > 0) delay_ms(step);
 
+		dmtx_clear(dmtx);
 		printtext(text, (SCREEN_W-1)-i, SCREEN_H/2-4);
+		dmtx_show(dmtx);
 	}
 }

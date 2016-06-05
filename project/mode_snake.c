@@ -283,6 +283,20 @@ static void new_game(void)
 	while(com_rx(gamepad_iface, &x));
 }
 
+static bool press_any_key(void)
+{
+	bool press = false;
+	if (com_rx_rdy(gamepad_iface)) {
+		uint8_t x;
+		while(com_rx(gamepad_iface, &x)) {
+			if (x >= 'A' && x <= 'Z') press = true;
+		}
+		return press;
+	}
+
+	return false;
+}
+
 static void snake_died(void)
 {
 	dbg("R.I.P. Snake");
@@ -306,26 +320,57 @@ static void snake_died(void)
 
 	snake_active = false; // suppress pending callbacks
 
+	delay_ms(400);
 	dmtx_clear(dmtx);
-	dmtx_blank(dmtx, true); // Screen off
 
+	// score
 	char txt[6];
 	sprintf(txt, "%d", score);
 	size_t len = strlen(txt);
 	printtext(txt, (int)(SCREEN_W / 2 - (len * 5) / 2) - 1, SCREEN_H / 2 - 4);
 
-	delay_ms(400);
-	dmtx_blank(dmtx, false); // unblank
+	dmtx_show(dmtx);
 
-	delay_ms(2000);
+	// discard input
+	uint8_t x;
+	while(com_rx(gamepad_iface, &x));
 
-	dmtx_blank(dmtx, true); // blank
-	delay_ms(400);
+	bool interr = false;
+	until_timeout(10000) {
+
+		for (int x = 0; x < SCREEN_W; x++) {
+			dmtx_set(dmtx, SCREEN_W - x - 1, 0, 1);
+			dmtx_set(dmtx, x, SCREEN_H-1, 1);
+			dmtx_show(dmtx);
+			delay_ms(7);
+			dmtx_set(dmtx, SCREEN_W - x - 1, 0, 0);
+			dmtx_set(dmtx, x, SCREEN_H-1, 0);
+
+			if (press_any_key())  {
+				interr = true;
+				break;
+			}
+		}
+		if (interr) break;
+
+		for (int y = SCREEN_H-1; y >= 0; y--) {
+			dmtx_set(dmtx, 0, SCREEN_H - y - 1, 1);
+			dmtx_set(dmtx, SCREEN_W-1, y, 1);
+			dmtx_show(dmtx);
+			delay_ms(7);
+			dmtx_set(dmtx, 0, SCREEN_H - y - 1, 0);
+			dmtx_set(dmtx, SCREEN_W-1, y, 0);
+
+			if (press_any_key())  {
+				interr = true;
+				break;
+			}
+		}
+		if (interr) break;
+	}
 
 	dmtx_clear(dmtx);
 	dmtx_show(dmtx);
-
-	dmtx_blank(dmtx, false); // unblank
 
 	snake_active = true; // resume snake
 	new_game();
