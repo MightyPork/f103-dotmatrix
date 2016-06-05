@@ -24,7 +24,8 @@ typedef enum {
 } CellType;
 
 /** Board cell */
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
 	CellType type : 2; // Cell type
 	Direction dir : 2; // direction the head moved to from this tile, if body = 1
 } Cell;
@@ -47,8 +48,9 @@ static Direction head_dir;
 
 /** blinking to visually change 'color' */
 
-typedef struct {
-	bool pwm_bit;
+typedef struct __attribute__((packed)) {
+	bool pwm_bit : 1;
+	bool offtask_pending : 1;
 	task_pid_t on_task; // periodic
 	task_pid_t off_task; // scheduled
 	ms_time_t interval_ms;
@@ -56,6 +58,7 @@ typedef struct {
 } snake_pwm;
 
 
+static bool alive = false;
 static bool moving = false;
 static task_pid_t task_snake_move;
 
@@ -71,70 +74,26 @@ static snake_pwm head_pwm = {
 	.offtime_ms = 90
 };
 
-static ms_time_t move_interval = 500;
+#define MIN_MOVE_INTERVAL 64
+#define POINTS_TO_LEVEL_UP 5
+#define PIECES_REMOVED_ON_LEVEL_UP 3
+
+#define PREDEFINED_LEVELS 10
+static const ms_time_t speeds_for_levels[PREDEFINED_LEVELS] = {
+	320, 245, 190, 150, 120, 100, 80, 60, 50, 40
+};
+
+static ms_time_t move_interval;
+
+static uint32_t score;
+static uint32_t level_up_score; // counter
+static uint32_t level;
 
 
-/** Get board cell at coord (x,y) */
-static Cell *cell_at_xy(int x, int y)
-{
-	if (x < 0 || x >= BOARD_W || y < 0 || y >= BOARD_H ) {
-		return &WALL_TILE; // discards const - OK
-	}
+static Cell *cell_at_xy(int x, int y);
 
-	return &board[y][x];
-}
 
-/** Get board cell at coord */
-static Cell *cell_at(Coord *coord)
-{
-	return cell_at_xy(coord->x, coord->y);
-}
-
-/** Place food in a random empty tile */
-static void place_food(void)
-{
-	Coord food;
-
-	// 1000 tries - timeout in case board is full of snake (?)
-	for (int i = 0; i < 1000; i++) {
-		food.x = rand() % BOARD_W;
-		food.y = rand() % BOARD_H;
-
-		Cell *cell = cell_at(&food);
-		if (cell->type == CELL_EMPTY) {
-			cell->type = CELL_FOOD;
-
-			dbg("Food at [%d, %d]", food.x, food.y);
-			break;
-		}
-	}
-}
-
-/** Clear the board and prepare for a new game */
-static void new_game(void)
-{
-	// randomize (we can assume it takes random time before the user switches to the Snake mode)
-	srand(SysTick->VAL);
-
-	// Erase the board
-	memset(board, 0, sizeof(board));
-
-	// Place initial snake
-
-	tail.x = BOARD_W/2-5;
-	tail.y = BOARD_H/2;
-
-	head.x = tail.x + 4;
-	head.y = tail.y;
-
-	head_dir = EAST;
-
-	for (int x = tail.x; x < head.x; x++) {
-		board[tail.y][x].type = CELL_BODY;
-	}
-
-	place_food();
-}
+// ---
 
 static void show_board(void)
 {
@@ -167,12 +126,6 @@ static void show_board(void)
 	dmtx_show(dmtx);
 }
 
-static void snake_move_cb(void *unused)
-{
-	(void)unused;
-
-	dbg("Move.");
-}
 
 // --- Snake PWM ---
 
@@ -180,8 +133,12 @@ static void snake_move_cb(void *unused)
 static void task_pwm_off_cb(void *ptr)
 {
 	if (!snake_active) return;
+	snake_pwm* pwm = ptr;
 
-	((snake_pwm*)ptr)->pwm_bit = 0;
+	if (!pwm->offtask_pending) return;
+	pwm->offtask_pending = false;
+
+	pwm->pwm_bit = 0;
 	show_board();
 }
 
@@ -189,35 +146,239 @@ static void task_pwm_off_cb(void *ptr)
 static void task_pwm_on_cb(void *ptr)
 {
 	if (!snake_active) return;
+	snake_pwm* pwm = ptr;
 
-	((snake_pwm*)ptr)->pwm_bit = 1;
+	pwm->pwm_bit = 1;
 	show_board();
 
-	schedule_task(task_pwm_off_cb, ptr, ((snake_pwm*)ptr)->offtime_ms, true);
+	pwm->offtask_pending = true;
+	schedule_task(task_pwm_off_cb, ptr, pwm->offtime_ms, true);
 }
 
 /** Initialize a snake PWM channel */
-static void snake_pwm_init(snake_pwm *ptr)
+static void snake_pwm_init(snake_pwm *pwm)
 {
-	ptr->on_task = add_periodic_task(task_pwm_on_cb, ptr, ptr->interval_ms, true);
-	enable_periodic_task(ptr->on_task, false);
+	pwm->on_task = add_periodic_task(task_pwm_on_cb, pwm, pwm->interval_ms, true);
+	enable_periodic_task(pwm->on_task, false);
 }
 
 /** Clear &  start a snake PWM channel */
-static void snake_pwm_start(snake_pwm *ptr)
+static void snake_pwm_start(snake_pwm *pwm)
 {
-	ptr->pwm_bit = 1;
-	reset_periodic_task(ptr->on_task);
-	enable_periodic_task(ptr->on_task, true);
+	pwm->pwm_bit = 1;
+	pwm->offtask_pending = false;
+	reset_periodic_task(pwm->on_task);
+	enable_periodic_task(pwm->on_task, true);
 }
 
 /** Stop a snake PWM channel */
-static void snake_pwm_stop(snake_pwm *ptr)
+static void snake_pwm_stop(snake_pwm *pwm)
 {
-	enable_periodic_task(ptr->on_task, false);
-	abort_scheduled_task(ptr->off_task);
+	pwm->offtask_pending = false;
+	enable_periodic_task(pwm->on_task, false);
+	abort_scheduled_task(pwm->off_task);
 }
 
+
+
+/** Get board cell at coord (x,y) */
+static Cell *cell_at_xy(int x, int y)
+{
+	if (x < 0 || x >= BOARD_W || y < 0 || y >= BOARD_H) {
+		return &WALL_TILE; // discards const - OK
+	}
+
+	return &board[y][x];
+}
+
+/** Get board cell at coord */
+static Cell *cell_at(Coord *coord)
+{
+	return cell_at_xy(coord->x, coord->y);
+}
+
+/** Place food in a random empty tile */
+static void place_food(void)
+{
+	Coord food;
+
+	// 1000 tries - timeout in case board is full of snake (?)
+	for (int i = 0; i < 1000; i++) {
+		food.x = rand() % BOARD_W;
+		food.y = rand() % BOARD_H;
+
+		Cell *cell = cell_at(&food);
+		if (cell->type == CELL_EMPTY) {
+			cell->type = CELL_FOOD;
+
+			//dbg("Food at [%d, %d]", food.x, food.y);
+			break;
+		}
+	}
+
+	// avoid "doubleblink" glitch
+	reset_periodic_task(food_pwm.on_task);
+	food_pwm.pwm_bit = 1;
+	food_pwm.offtask_pending = 0;
+}
+
+/** Clear the board and prepare for a new game */
+static void new_game(void)
+{
+	// Stop snake (make sure it's stopped)
+	reset_periodic_task(task_snake_move);
+	enable_periodic_task(task_snake_move, false);
+
+	moving = false;
+	alive = true;
+
+	level = 0;
+	score = 0;
+	move_interval = speeds_for_levels[level];
+	level_up_score = 0;
+	set_periodic_task_interval(task_snake_move, move_interval);
+
+	// randomize (we can assume it takes random time before the user switches to the Snake mode)
+	srand(SysTick->VAL);
+
+	// Erase the board
+	memset(board, 0, sizeof(board));
+
+	// Place initial snake
+
+	tail.x = BOARD_W / 2 - 5;
+	tail.y = BOARD_H / 2;
+
+	head.x = tail.x + 4;
+	head.y = tail.y;
+
+	head_dir = EAST;
+
+	for (int x = tail.x; x < head.x; x++) {
+		board[tail.y][x].type = CELL_BODY;
+		board[tail.y][x].dir = EAST;
+	}
+
+	place_food();
+
+	snake_pwm_start(&head_pwm);
+	snake_pwm_start(&food_pwm);
+
+	show_board();
+}
+
+static void snake_died(void)
+{
+	dbg("R.I.P. Snake");
+
+	moving = false;
+	alive = false;
+	enable_periodic_task(task_snake_move, false);
+
+	// stop blinky animation of the snake head.
+	snake_pwm_stop(&head_pwm);
+
+	// TODO death animation
+	// TODO show score
+}
+
+static void move_coord_by_dir(Coord *coord, Direction dir)
+{
+	switch (dir) {
+		case NORTH: coord->y++; break;
+		case SOUTH: coord->y--; break;
+		case EAST: coord->x++; break;
+		case WEST: coord->x--; break;
+	}
+
+	// Wrap-around
+	if (coord->x < 0) coord->x = BOARD_W - 1;
+	if (coord->y < 0) coord->y = BOARD_H - 1;
+	if (coord->x >= BOARD_W) coord->x = 0;
+	if (coord->y >= BOARD_H) coord->y = 0;
+}
+
+static void move_tail(void)
+{
+	Cell *tail_cell = cell_at(&tail);
+	tail_cell->type = CELL_EMPTY;
+	move_coord_by_dir(&tail, tail_cell->dir);
+}
+
+static void snake_move_cb(void *unused)
+{
+	(void)unused;
+
+	bool want_new_food = false;
+
+	Coord shadowhead = head;
+
+	move_coord_by_dir(&shadowhead, head_dir);
+
+	Cell *head_cell = cell_at(&head);
+	Cell *future_head_cell = cell_at(&shadowhead);
+
+	switch (future_head_cell->type) {
+		case CELL_BODY:
+		case CELL_WALL:
+			// R.I.P.
+			snake_died();
+			return;
+
+		case CELL_FOOD:
+			// grow - no head move
+			score++;
+			want_new_food = 1;
+			level_up_score++;
+			break;
+
+		case CELL_EMPTY:
+			// move tail
+			move_tail();
+			break;
+	}
+
+	// Move head
+	// (if died, already returned)
+	head_cell->dir = head_dir;
+	head_cell->type = CELL_BODY;
+
+	future_head_cell->type = CELL_BODY;
+
+	// apply movement
+	head = shadowhead;
+
+	if (want_new_food) {
+		place_food();
+	}
+
+	// render
+	show_board();
+
+	// level up
+	if (level_up_score == POINTS_TO_LEVEL_UP) {
+		enable_periodic_task(task_snake_move, false);
+
+		// remove some pieces
+		for (int i = 0; i < PIECES_REMOVED_ON_LEVEL_UP; i++) {
+			move_tail();
+			until_timeout(move_interval/2) {
+				tq_poll(); // take care of periodic tasks (anim)
+			}
+		}
+
+		level++;
+		level_up_score = 0;
+
+		// go faster if not too fast yet
+		if (level < PREDEFINED_LEVELS) {
+			move_interval = speeds_for_levels[level];
+		}
+
+		set_periodic_task_interval(task_snake_move, move_interval);
+		enable_periodic_task(task_snake_move, true);
+	}
+}
 
 
 /** INIT snake */
@@ -238,10 +399,6 @@ void mode_snake_start(void)
 	snake_pwm_start(&head_pwm);
 	snake_pwm_start(&food_pwm);
 
-	// Stop snake (make sure it's stopped)
-	enable_periodic_task(task_snake_move, false);
-	moving = false;
-
 	new_game();
 }
 
@@ -256,30 +413,51 @@ void mode_snake_stop(void)
 	enable_periodic_task(task_snake_move, false);
 }
 
+/** Change dir (safely) */
+static void change_direction(Direction dir)
+{
+	// This is a compensation for shitty gamepads
+	// with accidental arrow hits
+
+	Coord shadowhead = head;
+	move_coord_by_dir(&shadowhead, dir);
+
+	Cell *target = cell_at(&shadowhead);
+
+	if (target->type == CELL_BODY) return;
+
+	head_dir = dir;
+}
+
 /** User button */
 void mode_snake_btn(char key)
 {
 	switch (key) {
-		case 'U': head_dir = NORTH; break;
-		case 'D': head_dir = SOUTH; break;
-		case 'L': head_dir = WEST; break;
-		case 'R': head_dir = EAST; break;
+		case 'U': change_direction(NORTH); break;
+		case 'D': change_direction(SOUTH); break;
+		case 'L': change_direction(WEST); break;
+		case 'R': change_direction(EAST); break;
+
+		case 'J':
+			if (alive) break;
+			// dead - reset by pressing 'start'
 
 		case 'K': // clear
 			// TODO reset animation
-			mode_snake_stop();
-			mode_snake_start();
-			break;
+			new_game();
+			return;
 	}
 
-	if (!moving && (key == 'U' || key == 'D' || key == 'L' || key == 'R' || key == 'J')) {
+	if (!moving && alive && (key == 'U' || key == 'D' || key == 'L' || key == 'R' || key == 'J')) {
 		// start moving
+		moving = true;
 		reset_periodic_task(task_snake_move);
 		enable_periodic_task(task_snake_move, true);
 	}
 
 	// running + start -> 'pause'
-	if (moving && key == 'J') {
+	if (alive && moving && key == 'J') {
+		moving = false;
 		enable_periodic_task(task_snake_move, false);
 	}
 }
